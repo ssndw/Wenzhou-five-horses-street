@@ -1,0 +1,841 @@
+<!<!DOCTYPE html> 
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>五马街租房地图展示</title>
+  <script type="text/javascript">
+    window._AMapSecurityConfig = {
+      securityJsCode: "3060ffbe17fb0d65b7b68e4a519bb1d6",
+    };
+  </script>
+  <!-- 引入Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入Font Awesome -->
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+
+  <style type="text/tailwindcss">
+    @layer utilities {
+     .content-auto {
+        content-visibility: auto;
+      }
+     .map-container {
+        position: relative;
+        height: calc(100vh - 64px);
+        margin-top: 64px;
+      }
+     .form-input-focus {
+        @apply focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none;
+      }
+     .btn-primary {
+        @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors duration-200 shadow-md hover:shadow-lg;
+      }
+     .page-transition {
+        @apply transition-opacity duration-500 ease-in-out;
+      }
+    }
+  </style>
+
+  <style>
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+   .amap-logo,.amap-copyright {
+      display: block !important;
+    }
+
+   .amap-toolbar,.amap-scalecontrol,.amap-overviewcontrol {
+      z-index: 1000 !important;
+    }
+
+    #route-panel {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 300px;
+      height: 400px;
+      background-color: white;
+      overflow: auto;
+      z-index: 1001;
+      display: none; /* 默认隐藏，点击标记后显示 */
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    #map-loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1002;
+      background-color: white;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    #map-error {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1002;
+      background-color: white;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    /* 鹰眼控件样式 */
+    .鹰眼控件 {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      width: 200px;
+      height: 180px;
+      background-color: white;
+      border-radius: 5px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+      z-index: 1001;
+    }
+    
+    .鹰眼-map {
+      width: 100%;
+      height: 100%;
+    }
+    
+    .鹰眼-view {
+      position: absolute;
+      background-color: rgba(30, 144, 255, 0.5);
+      border: 2px solid white;
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    }
+
+    /* 页面过渡动画 */
+   .fade-in {
+      animation: fadeIn 0.5s ease-in-out forwards;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+   .fade-out {
+      animation: fadeOut 0.5s ease-in-out forwards;
+    }
+
+    @keyframes fadeOut {
+      from {
+        opacity: 1;
+      }
+
+      to {
+        opacity: 0;
+      }
+    }
+  </style>
+</head>
+
+<body class="bg-gray-50 font-sans">
+  <!-- 登录页面 -->
+  <div id="login-page" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 page-transition">
+    <div class="container mx-auto px-4 py-8">
+      <div class="max-w-md mx-auto bg-white rounded-xl shadow-2xl overflow-hidden transition-all duration-500 hover:shadow-4xl">
+        <div class="p-6 sm:p-8">
+          <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">五马街租房地图</h1>
+            <p class="mt-2 text-sm text-gray-500">登录后查看更多房源信息</p>
+          </div>
+
+          <form id="login-form" class="space-y-6"> 
+            <!-- 为表单指定了一个唯一的标识符 login-form，方便后续通过 JavaScript 来选择和操作这个表单。 -->
+             <!-- 使用了 Tailwind CSS 的类名。space-y-6 表示在垂直方向上（y 轴），该表单内的子元素之间会有一定的间距，这里是 6 个单位的间距。 -->
+            <div>
+              <label for="login-username" class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+              <!-- for="login-username"：属性的值必须与对应的 <input> 元素的 id 属性值相同，这样当用户点击这个标签时，对应的输入框会获得焦点。 -->
+              <!-- class="block text-sm font-medium text-gray-700 mb-1"：这是一系列 Tailwind CSS 类名。 -->
+              <!-- block：将标签元素显示为块级元素，使其独占一行。
+                  text-sm：设置文本的字体大小为小尺寸。
+                  font-medium：设置字体的粗细为中等。
+                  text-gray-700：设置文本颜色为灰色系中的第 700 级颜色。
+                  mb-1：设置元素的底部外边距为 1 个单位，使其与下方元素保持一定间距。 -->
+              <div class="relative">
+                <!-- class="relative" 使用了 Tailwind CSS 的类名，该元素的定位方式设置为相对定位。相对定位允许子元素使用绝对定位时相对于这个父元素进行定位。 -->
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <!-- absolute：将该元素的定位方式设置为绝对定位，使其脱离文档流。
+                  inset-y-0：将元素在垂直方向上（y 轴）的上下边缘与父元素对齐。
+                  left-0：将元素的左边缘与父元素的左边缘对齐。
+                  pl-3：设置元素的左内边距为 3 个单位。
+                  flex：将元素显示为弹性容器，方便其子元素的布局。
+                  items-center：在弹性容器中，将子元素在垂直方向上居中对齐。
+                  pointer-events-none：设置该元素不响应鼠标事件，即鼠标点击该元素时，事件会穿透它作用到下方的元素上。 -->
+                  <i class="fa fa-user text-gray-400"></i>
+                  <!-- fa 和 fa-user：是 Font Awesome 图标库的类名，用于显示一个用户图标。
+                  text-gray-400：使用 Tailwind CSS 的类名，将图标的颜色设置为灰色系中的第 400 级颜色。 -->
+                </div>
+                <input type="text" id="login-username" name="username"
+                  class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md form-input-focus"
+                  placeholder="请输入用户名">
+                  <!-- type="text"：指定输入框的类型为文本输入。
+                  id="login-username"：为输入框指定一个唯一的标识符，与上面 <label> 元素的 for 属性值对应。
+                  name="username"：指定输入框的名称，当表单提交时，该输入框的值会以 username 为键名发送到服务器。
+                  class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md form-input-focus"：
+                  block：将输入框显示为块级元素，使其独占一行。
+                  w-full：设置输入框的宽度为父元素的 100%。
+                  pl-10：设置输入框的左内边距为 10 个单位，为左侧的图标留出空间。
+                  pr-3：设置输入框的右内边距为 3 个单位。
+                  py-2：设置输入框的上下内边距为 2 个单位。
+                  border：为输入框添加边框。
+                  border-gray-300：将边框颜色设置为灰色系中的第 300 级颜色。
+                  rounded-md：将输入框的边框圆角设置为中等大小。
+                  form-input-focus：这是一个自定义的类名，可能在 CSS 中定义了输入框获得焦点时的样式。
+                  placeholder="请输入用户名"：为输入框提供一个占位符文本，当输入框为空时显示该文本，提示用户输入的内容。 -->
+
+              </div>
+            </div>
+  
+            <div>
+              <label for="login-password" class="block text-sm font-medium text-gray-700 mb-1">密码</label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <i class="fa fa-lock text-gray-400"></i>
+                </div>
+                <input type="password" id="login-password" name="password"
+                  class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md form-input-focus"
+                  placeholder="请输入密码">
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between">
+              <div class="flex items-center">
+                <input id="remember-me" name="remember-me" type="checkbox"
+                  class="h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded">
+                <label for="remember-me" class="ml-2 block text-sm text-gray-700">记住我</label>
+              </div>
+              <a href="#" class="text-sm text-blue-600 hover:text-blue-700">忘记密码?</a>
+            </div>
+
+            <button type="submit" class="w-full btn-primary flex items-center justify-center">
+              <i class="fa fa-sign-in mr-2"></i> 登录
+            </button>
+          </form>
+
+          <div class="mt-6 text-center">
+            <p class="text-sm text-gray-600">
+              还没有账号? <a href="#" class="font-medium text-blue-600 hover:text-blue-700">立即注册</a>
+            </p>
+            <p class="mt-4 text-xs text-gray-500">
+              点击登录，即表示您同意我们的 <a href="#" class="text-blue-600 hover:text-blue-700">服务条款</a> 和 <a
+                href="#" class="text-blue-600 hover:text-blue-700">隐私政策</a>
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-gray-50 px-6 py-4">
+          <div class="text-sm text-gray-600">
+            <p>快速访问</p>
+            <div class="flex space-x-3 mt-3">
+              <a href="#" class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 hover:bg-blue-200 transition-colors">
+                <i class="fa fa-weixin"></i>
+              </a>
+              <a href="#" class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 hover:bg-red-200 transition-colors">
+                <i class="fa fa-qq"></i>
+              </a>
+              <a href="#" class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 hover:bg-green-200 transition-colors">
+                <i class="fa fa-weibo"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主应用页面 -->
+  <div id="app-page" class="page-transition">
+    <!-- 顶部导航栏 -->
+    <header class="bg-white shadow-md fixed top-0 left-0 right-0 z-50">
+      <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-primary flex items-center">
+          <i class="fa fa-map-marker mr-2 text-accent"></i>
+          五马街租房地图
+        </h1>
+      </div>
+    </header>
+
+    <div class="map-container">
+      <div id="map-loading">
+        <i class="fa fa-spinner fa-spin mr-2"></i>加载地图中...
+      </div>
+      <div id="map-error">
+        <p class="text-red-500">地图加载失败，请稍后重试。</p>
+        <button id="retry-load" class="mt-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+          重试
+        </button>
+      </div>
+      <div id="map"></div>
+      
+      <!-- 鹰眼控件容器 -->
+      <div class="鹰眼控件" id="鹰眼">
+        <div id="鹰眼-map" class="鹰眼-map"></div>
+        <div id="鹰眼-view" class="鹰眼-view"></div>
+      </div>
+      
+      <div id="route-panel"></div>
+    </div>
+  </div>
+
+  <script>
+    // 登录表单提交处理
+    document.getElementById('login-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      // 模拟登录逻辑（实际需对接后端API）
+      const loginPage = document.getElementById('login-page');
+      const appPage = document.getElementById('app-page');
+
+      // 隐藏登录页，显示主页面（添加过渡动画）
+      loginPage.classList.add('fade-out');
+      appPage.classList.add('fade-in', 'block');
+      loginPage.style.display = 'none';
+      appPage.style.display = 'block';
+
+      // 初始化地图（可在此处添加实际登录验证后的逻辑）
+      loadMap();
+    });
+
+    // 显示加载提示
+    document.getElementById('map-loading').style.display = 'block';
+    document.getElementById('map-error').style.display = 'none';
+
+    // 重试加载地图的函数
+    function loadMap() {
+      // 清除之前可能存在的AMap对象
+      if (window.AMap) {
+        delete window.AMap;
+      }
+
+      // 显示加载提示，隐藏错误提示
+      document.getElementById('map-loading').style.display = 'block';
+      document.getElementById('map-error').style.display = 'none';
+
+      // 动态加载高德地图API，明确指定需要加载的插件（添加AMap.Walking）
+      const script = document.createElement('script');
+      script.src = 'https://webapi.amap.com/maps?v=2.0&key=d06dd42655888d1da12f6425174e63cf&plugin=AMap.ToolBar,AMap.Scale,AMap.OverView,AMap.Driving,AMap.Walking';
+      script.async = true;
+
+      // API加载成功回调
+      script.onload = function () {
+        // 隐藏加载提示
+        document.getElementById('map-loading').style.display = 'none';
+
+        // 确保AMap对象已正确加载
+        if (typeof AMap!== 'undefined') {
+          initMap();
+        } else {
+          showMapError();
+        }
+      };
+
+      // API加载失败回调
+      script.onerror = function () {
+        showMapError();
+      };
+
+      document.head.appendChild(script);
+    }
+
+    // 显示地图加载错误
+    function showMapError() {
+      document.getElementById('map-loading').style.display = 'none';
+      document.getElementById('map-error').style.display = 'block';
+    }
+
+    // 天气API配置（需替换为实际密钥）
+    const WEATHER_API_KEY = '你的天气API密钥'; //定义了一个天气 API 的密钥，在实际应用中，需要使用真实的 API 密钥来调用后端的天气服务。
+
+    // 获取天气数据函数
+    function getWeatherData(lng, lat, callback) {
+      // 模拟天气数据（实际需替换为真实API请求）
+      //随机选择一个数据并在 500 毫秒后通过回调函数返回。在实际应用中，这里应该使用 fetch 或其他 AJAX 技术向天气 API 发送请求，获取真实的天气数据。
+
+      const mockWeather = [
+        { temp: "25°C", wind: "2级" },
+        { temp: "23°C", wind: "3级" },
+        { temp: "26°C", wind: "1级" },
+        { temp: "24°C", wind: "4级" }
+      ];
+      // 随机返回模拟数据（实际应用中替换为API请求）
+      const randomWeather = mockWeather[Math.floor(Math.random() * mockWeather.length)];
+      setTimeout(() => callback(randomWeather), 500);
+    }
+
+    // 初始化地图
+    function initMap() {
+      var map = new AMap.Map('map', {
+        zoom: 15,
+        center: [120.6665, 28.0102]
+      });
+
+      map.on('complete', function () {
+        if (AMap.ToolBar) {
+          map.addControl(new AMap.ToolBar({
+            position: 'LT', // 左上角
+            liteStyle: true // 使用简洁样式
+          }));
+        } else {
+          console.error('地图工具条插件未正确加载');
+        }
+
+        if (AMap.Scale) {
+          map.addControl(new AMap.Scale());
+        }
+
+        if (AMap.OverView) {
+          map.addControl(new AMap.OverView({ isOpen: true }));
+        }
+        
+        // 初始化鹰眼控件
+        initOverviewMap(map);
+      });
+
+
+      // 租房数据数组（扩展天气字段）
+      var rentData = [
+        { 
+          "标题": "（本网推荐）免费看房！五马街，人民路，可直接领包入住！", 
+          "经度": 120.6665, 
+          "纬度": 28.0102, 
+          "money": "800元/月", 
+          "area": "25㎡", 
+          "type": "1室", 
+          "desc": "五马街105号小区"
+        },
+        { 
+          "标题": "五马街核心地段，精装修一居室，交通便利", 
+          "经度": 120.6680, 
+          "纬度": 28.0120, 
+          "money": "1200元/月", 
+          "area": "35㎡", 
+          "type": "1室1厅", 
+          "desc": "五马街120号小区"
+        },
+        { 
+          "标题": "近地铁口，采光好，价格实惠", 
+          "经度": 120.6640, 
+          "纬度": 28.0080, 
+          "money": "950元/月", 
+          "area": "28㎡", 
+          "type": "1室", 
+          "desc": "五马街85号小区"
+        },
+        { "标题": "(可月付短租)时代广场，火车站车站大道等多套精简装修房屋出租", "经度": 120.6743, "纬度": 27.9932, "money": "1000元/月", "area": "30㎡", "type": "1室", "desc": "时代公寓" },
+{ "标题": "（免费带看，登记）五马街精装公寓多套，商业街旁，性价比之选", "经度": 120.6648, "纬度": 28.0115, "money": "600元/月", "area": "25㎡", "type": "1室", "desc": "打铁巷9号楼" },
+{ "标题": "（免费看房！）锦绣路多套好房，直接领包入住，急租直接领包电话", "经度": 120.6854, "纬度": 27.9996, "money": "1000元/月", "area": "35㎡", "type": "1室", "desc": "蒲鞋市68,76弄小区" },
+{ "标题": "（免费看房！）欧洲城850到1500，全新多套出租，可直接住", "经度": 120.6801, "纬度": 28.0205, "money": "850元/月", "area": "25㎡", "type": "1室", "desc": "欧洲城(商住楼)" },
+{ "标题": "（免费看房！）五马街，马鞍池，附近多套出租，可直接领包入住！", "经度": 120.6589, "纬度": 28.0057, "money": "1000元/月", "area": "35㎡", "type": "1室", "desc": "马鞍池东路12,14号楼" },
+{ "标题": "（免费看房！）五马街，纱帽河，公寓多套出租，急租直接打我电话", "经度": 120.6682, "纬度": 28.0128, "money": "1000元/月", "area": "25㎡", "type": "1室", "desc": "新街公寓" },
+{ "标题": "（免费看房！）五马街人民路大小南门附近精装多套单身公寓出租", "经度": 120.6667, "纬度": 28.0119, "money": "1000元/月", "area": "30㎡", "type": "1室", "desc": "开太大厦" },
+{ "标题": "(免费看房，）马鞍池，银泰世贸大厦，单身公寓出租，可直接拎包", "经度": 120.6589, "纬度": 28.0057, "money": "800元/月", "area": "30㎡", "type": "1室", "desc": "马鞍池东路12,14号楼" },
+{ "标题": "（免费看房，）五马街，可直接领包入住，急租直接打我电话", "经度": 120.6682, "纬度": 28.0128, "money": "1000元/月", "area": "25㎡", "type": "1室", "desc": "新街公寓" },
+{ "标题": "(免费看房，实拍）附二医旁边，多套好装修出租，急租请打我电话", "经度": 120.6823, "纬度": 27.9974, "money": "500元/月", "area": "25㎡", "type": "1室", "desc": "湖萃湾" },
+{ "标题": "奥林匹克广场工人文化宫（月付）附近多套房源出租 可短租月付", "经度": 120.6721, "纬度": 28.0083, "money": "800元/月", "area": "39㎡", "type": "1室", },
+{ "标题": "百里路中心医院附近全新奶油风，家电齐全，可以月付，拎包入住", "经度": 120.6547, "纬度": 28.0186, "money": "900元/月", "area": "30㎡", "type": "1室", "desc": "百里安居小区" },
+{ "标题": "不用中介费，五马街附近，一室一卫一厨1000至1500可月付", "经度": 120.6682, "纬度": 28.0128, "money": "1000元/月", "area": "40㎡", "type": "1室", "desc": "新街公寓" },
+{ "标题": "蝉街商厦 1室1厅1卫 电梯房 配套齐全 精装修", "经度": 120.6635, "纬度": 28.0132, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "蝉街商厦" },
+{ "标题": "房间宽敞明亮 诗和远方很贵，但找我房租不贵", "经度": 120.6612, "纬度": 28.0145, "money": "960元/月", "area": "30㎡", "type": "1室", "desc": "小南路82号楼" },
+{ "标题": "附二医精装修700至1500多套，可以月付，拎包入住", "经度": 120.6854, "纬度": 27.9996, "money": "880元/月", "area": "30㎡", "type": "1室", "desc": "蒲鞋市68,76弄小区" },
+{ "标题": "公寓直签不收中介费，实价实租，有电梯和停车场，采光好。", "经度": 120.6612, "纬度": 28.0145, "money": "899元/月", "area": "25㎡", "type": "1室", "desc": "小南路82号楼" },
+{ "标题": "公园路136弄小区 1室1厅1卫", "经度": 120.6659, "纬度": 28.0126, "money": "850元/月", "area": "43.01㎡", "type": "1室", "desc": "公园路136弄小区" },
+{ "标题": "鼓楼街小区 1室0厅1卫", "经度": 120.6624, "纬度": 28.0158, "money": "660元/月", "area": "23㎡", "type": "1室", "desc": "鼓楼街小区" },
+{ "标题": "广化桥精装电梯房900至1500可以月付，家电齐全，拎包入住", "经度": 120.6468, "纬度": 28.0229, "money": "900元/月", "area": "30㎡", "type": "1室", "desc": "西城路87号院" },
+{ "标题": "广化桥精装修电梯房800至1800可月付，家电齐全拎包入住！", "经度": 120.6468, "纬度": 28.0229, "money": "900元/月", "area": "30㎡", "type": "1室", "desc": "西城路87号院" },
+{ "标题": "好房推荐 欧洲城900至1500一室一卫一厨家电齐全提包入住", "经度": 120.6801, "纬度": 28.0205, "money": "850元/月", "area": "25㎡", "type": "1室", "desc": "欧洲城(商住楼)" },
+{ "标题": "环城东路58-62号小区 1室1厅1卫", "经度": 120.6892, "纬度": 28.0037, "money": "1000元/月", "area": "30㎡", "type": "1室", "desc": "环城东路58-62号小区" },
+{ "标题": "急租 可短租月付家电齐全拎包入住解放军906医院温州中心医院", "经度": 120.6785, "纬度": 28.0072, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "招贤小区" },
+{ "标题": "急租 温州交通技术学校（可短租可月付", "经度": 120.6379, "纬度": 27.9854, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "瓯海宿舍" },
+{ "标题": "急租 五马步行街温州人民医院（可短租可月付", "经度": 120.6678, "纬度": 28.0105, "money": "1000元/月", "area": "39㎡", "type": "1室", "desc": "金达商厦" },
+{ "标题": "急租！奥林匹克广场工人文化馆", "经度": 120.6721, "纬度": 28.0083, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "新园觉小区" },
+{ "标题": "急租！解放军906医院欧洲城新天地（可短租可月付）", "经度": 120.6785, "纬度": 28.0072, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "招贤小区" },
+{ "标题": "急租！温州医学院附属第1医院（可短租可月付）", "经度": 120.6682, "纬度": 28.0128, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "新街公寓" },
+{ "标题": "急租！银泰百货温州世贸中心   可短租可月付", "经度": 120.6598, "纬度": 28.0045, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "马鞍池社区" },
+{ "标题": "急租时代广场，车站大道，财富中心，恒隆广场附近精装修单身公寓", "经度": 120.6743, "纬度": 27.9932, "money": "1000元/月", "area": "40㎡", "type": "1室", "desc": "时代公寓" },
+{ "标题": "解放街后巷小区 1室1厅1卫", "经度": 120.663, "纬度": 28.016, "money": "748元/月", "area": "45㎡", "type": "1室", "desc": "解放街后巷小区" },
+{ "标题": "解放军906医院温州中心医院 月付可短租家电全拎包入住", "经度": 120.6785, "纬度": 28.0072, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "招贤小区" },
+{ "标题": "解放军906医院温州中心医院（月付）附近多套房源出租 可短租", "经度": 120.6785, "纬度": 28.0072, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "招贤小区" },
+{ "标题": "金达商厦 1室1厅1卫 电梯房 配套齐全 精装修", "经度": 120.6678, "纬度": 28.0105, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "金达商厦" },
+{ "标题": "精致公寓，独门独户，干净整洁，独厨独卫，划算，拎包入住", "经度": 120.6653, "纬度": 28.012, "money": "899元/月", "area": "25㎡", "type": "1室", "desc": "胜利商厦(商住楼)" },
+{ "标题": "精致公寓，温馨舒适，家具齐全，实景实拍，交通便捷", "经度": 120.6653, "纬度": 28.012, "money": "999元/月", "area": "20㎡", "type": "1室", "desc": "胜利商厦(商住楼)" },
+{ "标题": "精装公寓，家电齐全，温馨舒适，安全性高，位置优越，诚心出租", "经度": 120.664, "纬度": 28.0098, "money": "999元/月", "area": "15㎡", "type": "1室", "desc": "华府大楼(商业)" },
+{ "标题": "精装公寓，温馨舒适，家具齐全，实景实拍，交通便捷，性价比高", "经度": 120.6653, "纬度": 28.012, "money": "999元/月", "area": "40㎡", "type": "1室", "desc": "胜利商厦(商住楼)" },
+{ "标题": "精装公寓，无中介，安全性高，租房必看，划算", "经度": 120.664, "纬度": 28.0098, "money": "999元/月", "area": "20㎡", "type": "1室", "desc": "华府大楼(商业)" },
+{ "标题": "精装奶油风世贸电梯房 880起多套，家电齐全，可月付，可短租", "经度": 120.6589, "纬度": 28.0057, "money": "880元/月", "area": "20㎡", "type": "1室", "desc": "马鞍池东路12,14号楼" },
+{ "标题": "看完省巨款，精装公寓，温馨一室，实景实拍，逃离合租", "经度": 120.6653, "纬度": 28.012, "money": "999元/月", "area": "35㎡", "type": "1室", "desc": "胜利商厦(商住楼)" },
+{ "标题": "可短租可月付 五马街开太百货银泰百货附近多套单身公寓出租", "经度": 120.6667, "纬度": 28.0119, "money": "1000元/月", "area": "30㎡", "type": "1室", "desc": "开太大厦" },
+{ "标题": "可短租月付，欧洲城，五马街，世贸银泰百货附近多套单身公寓", "经度": 120.6667, "纬度": 28.0119, "money": "1000元/月", "area": "30㎡", "type": "1室", "desc": "开太大厦" },
+{ "标题": "可短租月付欧洲城，花园五马街，江滨西路多套单身公寓出租", "经度": 120.6667, "纬度": 28.0119, "money": "1000元/月", "area": "30㎡", "type": "1室", "desc": "开太大厦" },
+{ "标题": "鹿城五马街小南路扬舲公寓 独门独户", "经度": 120.6612, "纬度": 28.0145, "money": "900元/月", "area": "30㎡", "type": "1室", "desc": "小南路82号楼" },
+{ "标题": "马鞍池社区 1室1厅1卫 精装修 配套齐全", "经度": 120.6598, "纬度": 28.0045, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "马鞍池社区" },
+{ "标题": "马鞍池世贸大厦，银泰附近，精装公寓多套，家电齐全，可月付！", "经度": 120.6589, "纬度": 28.0057, "money": "850元/月", "area": "30㎡", "type": "1室", "desc": "马鞍池东路12,14号楼" },
+{ "标题": "马鞍池银泰附近，五马街附近，多套一室带厨房，家电齐全，可月付", "经度": 120.6589, "纬度": 28.0057, "money": "900元/月", "area": "35㎡", "type": "1室", "desc": "马鞍池东路12,14号楼" },
+{ "标题": "美美时尚广场，维也纳酒店附近，多套单间独卫带厨房家电齐，月付", "经度": 120.6453, "纬度": 28.0251, "money": "800元/月", "area": "35㎡", "type": "1室", "desc": "鹿城路34-36号楼" },
+{ "标题": "免费带看，人民路电梯房1000至1500，家电齐全，拎包入住", "经度": 120.6667, "纬度": 28.0119, "money": "1000元/月", "area": "30㎡", "type": "1室", "desc": "开太大厦" },
+{ "标题": "免费带看，五马街附近，一室一卫一厨1000至1500支持月付", "经度": 120.6682, "纬度": 28.0128, "money": "1000元/月", "area": "40㎡", "type": "1室", "desc": "新街公寓" },
+{ "标题": "免费带看，银泰附近，一室一卫一厨1000至1500，支持月付", "经度": 120.6589, "纬度": 28.0057, "money": "1000元/月", "area": "40㎡", "type": "1室", "desc": "马鞍池东路12,14号楼" },
+{ "标题": "免费带看，银泰马鞍池一室一卫800，可以月付，家电齐全", "经度": 120.6589, "纬度": 28.0057, "money": "800元/月", "area": "20㎡", "type": "1室", "desc": "马鞍池东路12,14号楼" },
+{ "标题": "免费带看，银泰世贸附近精装奶油风，家电齐全  可以月付", "经度": 120.6589, "纬度": 28.0057, "money": "1000元/月", "area": "36.0㎡", "type": "1室", "desc": "马鞍池东路12,14号楼" },
+{ "标题": "免费带看现场实拍，欧洲城电梯新装880至1500家电齐全提包", "经度": 120.6801, "纬度": 28.0205, "money": "880元/月", "area": "32㎡", "type": "1室", "desc": "欧洲城(商住楼)" },
+{ "标题": "免费带看银泰世贸精装单间1000至1500，可月付，家电齐全", "经度": 120.6589, "纬度": 28.0057, "money": "1000元/月", "area": "36.0㎡", "type": "1室", "desc": "马鞍池东路12,14号楼" },
+{ "标题": "免费看房 银泰马鞍池一室一卫800起，多套，家电齐全，可月付", "经度": 120.6589, "纬度": 28.0057, "money": "880元/月", "area": "20㎡", "type": "1室", "desc": "马鞍池东路12,14号楼" },
+{ "标题": "免费看房，广化桥精装电梯房800至1500可以月付，家电齐全", "经度": 120.6468, "纬度": 28.0229, "money": "900元/月", "area": "30㎡", "type": "1室", "desc": "西城路87号院" },
+{ "标题": "免费看房，精装修，附二医，银泰世贸，马鞍池附近，可月付", "经度": 120.6854, "纬度": 27.9996, "money": "880元/月", "area": "32㎡", "type": "1室", "desc": "蒲鞋市68,76弄小区" },
+{ "标题": "免费看房，可短租，马鞍池，小南路，五马街附近多套房间出租，", "经度": 120.6612, "纬度": 28.0145, "money": "800元/月", "area": "25㎡", "type": "1室", "desc": "小南路82号楼" },
+{ "标题": "免费看房，欧洲城附近多套房间出租，出租，拎包入住", "经度": 120.6801, "纬度": 28.0205, "money": "800元/月", "area": "25㎡", "type": "1室", "desc": "欧洲城(商住楼)" },
+{ "标题": "免费看房，欧洲城附近新装一室一卫一厨家电齐全随时提包入住", "经度": 120.6801, "纬度": 28.0205, "money": "990元/月", "area": "35㎡", "type": "1室", "desc": "欧洲城(商住楼)" },
+{ "标题": "免费看房，实拍！马鞍池公园，银泰世贸，五马街附近多套出租", "经度": 120.6589, "纬度": 28.0057, "money": "980元/月", "area": "35㎡", "type": "1室", "desc": "马鞍池东路12,14号楼" },
+{ "标题": "免费看房，五马街，开太，第一桥，银泰世贸附近多套，可月付", "经度": 120.6667, "纬度": 28.0119, "money": "999元/月", "area": "25㎡", "type": "1室", "desc": "开太大厦" },
+{ "标题": "免费看房，五马街附二医附近新装修家电齐全一室一卫一厨提包入住", "经度": 120.6854, "纬度": 27.9996, "money": "880元/月", "area": "35㎡", "type": "1室", "desc": "蒲鞋市68,76弄小区" },
+{ "标题": "免费看房时代广场 财富中心 恒隆广场 下吕浦1000实拍多套", "经度": 120.6743, "纬度": 27.9932, "money": "1000元/月", "area": "35㎡", "type": "1室", "desc": "时代公寓" },
+{ "标题": "免费看房实拍，附二医附近新装一室一卫一厨家电齐全提包入住", "经度": 120.6854, "纬度": 27.9996, "money": "880元/月", "area": "32㎡", "type": "1室", "desc": "蒲鞋市68,76弄小区" },
+{ "标题": "免费看房实拍，附二医附近一室一卫一厨880至1500随时入住", "经度": 120.6854, "纬度": 27.9996, "money": "880元/月", "area": "32㎡", "type": "1室", "desc": "蒲鞋市68,76弄小区" },
+{ "标题": "免费看房实拍，附二医隔壁电梯880至1500家电齐全提包入住", "经度": 120.6854, "纬度": 27.9996, "money": "880元/月", "area": "32㎡", "type": "1室", "desc": "蒲鞋市68,76弄小区" },
+{ "标题": "免费看房实拍，附二医银泰新装880至1500家电齐全提包入住", "经度": 120.6854, "纬度": 27.9996, "money": "880元/月", "area": "32㎡", "type": "1室", "desc": "蒲鞋市68,76弄小区" },
+{ "标题": "免费看房实拍，欧洲城内环新装880至1500家电齐全随时入住", "经度": 120.6801, "纬度": 28.0205, "money": "880元/月", "area": "32㎡", "type": "1室", "desc": "欧洲城(商住楼)" },
+{ "标题": "免费看房实拍，西城路广化桥新装880至1500家电齐全入住", "经度": 120.6468, "纬度": 28.0229, "money": "880元/月", "area": "32㎡", "type": "1室", "desc": "西城路87号院" },
+{ "标题": "免费看房实拍，银泰世贸附近新装一室一卫一厨家电齐全提包入住", "经度": 120.6589, "纬度": 28.0057, "money": "880元/月", "area": "32㎡", "type": "1室", "desc": "马鞍池东路12,14号楼" },
+{ "标题": "免费看房现场实拍，附二医银泰附近新装家电齐全一室一卫一厨随时", "经度": 120.6854, "纬度": 27.9996, "money": "880元/月", "area": "32㎡", "type": "1室", "desc": "蒲鞋市68,76弄小区" },
+{ "标题": "免费看房现场实拍，欧洲城新装880至1500家电一室一卫一厨", "经度": 120.6801, "纬度": 28.0205, "money": "880元/月", "area": "32㎡", "type": "1室", "desc": "欧洲城(商住楼)" },
+{ "标题": "免费看房现场实拍，五马街中山公园欧洲城附近一室一卫一厨家电", "经度": 120.6801, "纬度": 28.0205, "money": "980元/月", "area": "35㎡", "type": "1室", "desc": "欧洲城(商住楼)" },
+{ "标题": "免费看房现场实拍，西城路广化桥880至1500家电齐全提包住", "经度": 120.6468, "纬度": 28.0229, "money": "880元/月", "area": "32㎡", "type": "1室", "desc": "西城路87号院" },
+{ "标题": "免费看房现场实拍，西城路广化桥电梯880至1500家电齐全提", "经度": 120.6468, "纬度": 28.0229, "money": "880元/月", "area": "32㎡", "type": "1室", "desc": "西城路87号院" },
+{ "标题": "免费看房现场实拍，银泰世贸新装附近一室一卫一厨家电齐全随", "经度": 120.6589, "纬度": 28.0057, "money": "980元/月", "area": "32㎡", "type": "1室", "desc": "马鞍池东路12,14号楼" },
+{ "标题": "免费看房银泰世贸附近一室一卫800，可以月付，家电齐全", "经度": 120.6589, "纬度": 28.0057, "money": "800元/月", "area": "20㎡", "type": "1室", "desc": "马鞍池东路12,14号楼" },
+{ "标题": "免中介 车站大道时代广场财富中心多套精装修公寓出租", "经度": 120.6743, "纬度": 27.9932, "money": "900元/月", "area": "32.00㎡", "type": "1室", "desc": "时代公寓" },
+{ "标题": "免中介 时代广场 车站大道 财富中心多套一室一厅精装修出租", "经度": 120.6743, "纬度": 27.9932, "money": "900元/月", "area": "30.00㎡", "type": "1室", "desc": "时代公寓" },
+{ "标题": "免中介费出租车站大道时代广场财富中心恒隆广场万顺大厦附近公寓", "经度": 120.6743, "纬度": 27.9932, "money": "1000元/月", "area": "40㎡", "type": "1室", "desc": "时代公寓" },
+{ "标题": "免中介费好停车可养宠物时代广场车站大道财富恒隆火车站附近公寓", "经度": 120.6743, "纬度": 27.9932, "money": "980元/月", "area": "40㎡", "type": "1室", "desc": "时代公寓" },
+{ "标题": "免中介费可养宠物时代广场车站大道恒隆广场附近多套精装公寓", "经度": 120.6743, "纬度": 27.9932, "money": "980元/月", "area": "35㎡", "type": "1室", "desc": "时代公寓" },
+{ "标题": "免中介费时代广场，财富中心，车站大道锦绣路附近精装修单身公寓", "经度": 120.6743, "纬度": 27.9932, "money": "1000元/月", "area": "40㎡", "type": "1室", "desc": "时代公寓" },
+{ "标题": "瓯海宿舍 1室1厅1卫 配套齐全 电梯房 精装修", "经度": 120.6379, "纬度": 27.9854, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "瓯海宿舍" },
+{ "标题": "热推房实拍图片价格实惠 新装欧洲城800至1500 领包入住", "经度": 120.6801, "纬度": 28.0205, "money": "800元/月", "area": "25㎡", "type": "1室", "desc": "欧洲城(商住楼)" },
+{ "标题": "人民路电梯房全新装修1000至1500，家电齐全，拎包入住", "经度": 120.6667, "纬度": 28.0119, "money": "1000元/月", "area": "30㎡", "type": "1室", "desc": "开太大厦" },
+{ "标题": "三官殿巷一室一厅一卫，拎包入住", "经度": 120.6605, "纬度": 28.0172, "money": "620元/月", "area": "34㎡", "type": "1室", "desc": "三官殿巷127号楼" },
+{ "标题": "随时看房，五马街 人民路 可月付公寓 家电齐全", "经度": 120.6652, "纬度": 28.0137, "money": "900元/月", "area": "28㎡", "type": "1室", "desc": "公安路32号小区" },
+{ "标题": "温州交通技术学校（月付）附近多套房源出租 可短租月付", "经度": 120.6379, "纬度": 27.9854, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "瓯海宿舍" },
+{ "标题": "温州医学院附属第一医院 月付可短租家电全拎包入住", "经度": 120.6682, "纬度": 28.0128, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "新街公寓" },
+{ "标题": "温州医学院附属第一医院月付短租长租都可以", "经度": 120.6682, "纬度": 28.0128, "money": "1000元/月", "area": "40㎡", "type": "1室", "desc": "新街公寓" },
+{ "标题": "无介绍 随时看房 五马街 公园路 蝉街附近公寓 1000", "经度": 120.6665, "纬度": 28.0102, "money": "1000元/月", "area": "20㎡", "type": "1室", "desc": "五马街105号小区" },
+{ "标题": "无中介 蝉街 步行街 胜利商厦 第一桥附近 随时看房1000", "经度": 120.6653, "纬度": 28.012, "money": "1000元/月", "area": "20㎡", "type": "1室", "desc": "胜利商厦(商住楼)" },
+{ "标题": "无中介 第一桥 纱帽河 五马街附近公寓 随时看房 1000", "经度": 120.6641, "纬度": 28.0109, "money": "1000元/月", "area": "20㎡", "type": "1室", "desc": "融谊大楼" },
+{ "标题": "无中介 府前大楼 五马街 牙科医院 晏公殿巷附近 随时看房", "经度": 120.6638, "纬度": 28.0142, "money": "1000元/月", "area": "20㎡", "type": "1室", "desc": "府前大楼(鹿城)" },
+{ "标题": "无中介 随时看房 五马街 打铁巷公寓  随时看房  1000", "经度": 120.663, "纬度": 28.016, "money": "1000元/月", "area": "20㎡", "type": "1室", "desc": "解放街后巷小区" },
+{ "标题": "无中介 五马街 纱帽河 第一桥融谊大楼附近 1室1厨1卫", "经度": 120.6641, "纬度": 28.0109, "money": "1000元/月", "area": "20㎡", "type": "1室1厨1卫", "desc": "无中介，随时可看" },
+{ "标题": "无中介 自己公寓随时看新县前大楼 解放街附近 1室1厨1卫", "经度": 120.6627, "纬度": 28.0163, "money": "1000元/月", "area": "20㎡", "type": "1室1厨1卫", "desc": "无中介，自己公寓，随时可看" },
+{ "标题": "五马步行街温州市人民医院 月付可短租家电全拎包入住", "经度": 120.6678, "纬度": 28.0105, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "月付可短租，家电全，拎包入住" },
+{ "标题": "五马步行街温州市人民医院（月付）附近多套房源出租 可短租月付", "经度": 120.6678, "纬度": 28.0105, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "月付可短租，附近多套房源出租" },
+{ "标题": "五马街，小南门，马鞍池多套一室一卫一厨家电齐全，可月付！", "经度": 120.6589, "纬度": 28.0057, "money": "900元/月", "area": "25㎡", "type": "1室", "desc": "多套一室一卫一厨，家电齐全，可月付" },
+{ "标题": "五马鹿城周边 电梯公寓", "经度": 120.6453, "纬度": 28.0251, "money": "998元/月", "area": "19㎡", "type": "1室", "desc": "电梯公寓" },
+{ "标题": "五马水心公寓，自己房子出租，拎包入住，户型可选，商住两用。", "经度": 120.6453, "纬度": 28.0251, "money": "998元/月", "area": "25㎡", "type": "1室", "desc": "自己房子出租，拎包入住，户型可选，商住两用" },
+{ "标题": "五马水心周边 自己房子 押一付一 电梯房 拎包入住 朝南", "经度": 120.6453, "纬度": 28.0251, "money": "900元/月", "area": "19㎡", "type": "1室", "desc": "自己房子，押一付一，电梯房，拎包入住，朝南" },
+{ "标题": "五马小南路 自己房子 押一付一 拎包入住 管家服务", "经度": 120.6612, "纬度": 28.0145, "money": "999元/月", "area": "25㎡", "type": "1室", "desc": "自己房子，押一付一，拎包入住，管家服务" },
+{ "标题": "五马小南路 自己房子 押一付一 拎包入住 管家服务", "经度": 120.6612, "纬度": 28.0145, "money": "999元/月", "area": "25㎡", "type": "1室", "desc": "自己房子，押一付一，拎包入住，管家服务" },
+{ "标题": "五马小南路 自己房子 押一付一 拎包入住 管家服务", "经度": 120.6612, "纬度": 28.0145, "money": "999元/月", "area": "25㎡", "type": "1室", "desc": "自己房子，押一付一，拎包入住，管家服务" },
+{ "标题": "五马小南路 自己房子 押一付一 拎包入住 管家服务", "经度": 120.6612, "纬度": 28.0145, "money": "999元/月", "area": "25㎡", "type": "1室", "desc": "自己房子，押一付一，拎包入住，管家服务" },
+{ "标题": "五马小南路周边，精装公寓，无中介自己房子，温馨一室，实景实拍", "经度": 120.6612, "纬度": 28.0145, "money": "998元/月", "area": "25㎡", "type": "1室", "desc": "精装公寓，无中介自己房子，温馨一室，实景实拍" },
+{ "标题": "五马小南路周边，精装公寓，无中介自己房子，温馨一室，实景实拍", "经度": 120.6612, "纬度": 28.0145, "money": "998元/月", "area": "25㎡", "type": "1室", "desc": "精装公寓，无中介自己房子，温馨一室，实景实拍" },
+{ "标题": "五马小南路周边，精装公寓，无中介自己房子，温馨一室，实景实拍", "经度": 120.6612, "纬度": 28.0145, "money": "999元/月", "area": "28㎡", "type": "1室", "desc": "精装公寓，无中介自己房子，温馨一室，实景实拍" },
+{ "标题": "五马小南路周边，精装公寓，无中介自己房子，温馨一室，实景实拍", "经度": 120.6612, "纬度": 28.0145, "money": "999元/月", "area": "25㎡", "type": "1室", "desc": "精装公寓，无中介自己房子，温馨一室，实景实拍" },
+{ "标题": "五马小南路周边，精装公寓，无中介自己房子，温馨一室，实景实拍", "经度": 120.6612, "纬度": 28.0145, "money": "699元/月", "area": "25㎡", "type": "1室", "desc": "精装公寓，无中介自己房子，温馨一室，实景实拍" },
+{ "标题": "五马小南路周边，精装公寓，无中介自己房子，温馨一室，实景实拍", "经度": 120.6612, "纬度": 28.0145, "money": "999元/月", "area": "25㎡", "type": "1室", "desc": "精装公寓，无中介自己房子，温馨一室，实景实拍" },
+{ "标题": "五马小南路周边，精装公寓，无中介自己房子，温馨一室，实景实拍", "经度": 120.6612, "纬度": 28.0145, "money": "699元/月", "area": "27㎡", "type": "1室", "desc": "精装公寓，无中介自己房子，温馨一室，实景实拍" },
+{ "标题": "五马小南路周边，精装公寓，无中介自己房子，温馨一室，实景实拍", "经度": 120.6612, "纬度": 28.0145, "money": "999元/月", "area": "25㎡", "type": "1室", "desc": "精装公寓，无中介自己房子，温馨一室，实景实拍" },
+{ "标题": "五马小南路周边，精装公寓，无中介自己房子，温馨一室，实景实拍", "经度": 120.6612, "纬度": 28.0145, "money": "950元/月", "area": "24㎡", "type": "1室", "desc": "精装公寓，无中介自己房子，温馨一室，实景实拍" },
+{ "标题": "五马小南路周边，精装公寓，无中介自己房子，温馨一室，实景实拍", "经度": 120.6612, "纬度": 28.0145, "money": "999元/月", "area": "28㎡", "type": "1室", "desc": "精装公寓，无中介自己房子，温馨一室，实景实拍" },
+{ "标题": "五马小南路周边，精装公寓，无中介自己房子，温馨一室，实景实拍", "经度": 120.6612, "纬度": 28.0145, "money": "998元/月", "area": "25㎡", "type": "1室", "desc": "精装公寓，无中介自己房子，温馨一室，实景实拍" },
+{ "标题": "西城路农贸市场附近多套单间独卫带烧饭，家电齐全，可月付！", "经度": 120.6468, "纬度": 28.0229, "money": "1000元/月", "area": "35㎡", "type": "1室", "desc": "多套单间独卫带烧饭，家电齐全，可月付" },
+{ "标题": "现场实拍，免费看房广化桥一室一卫一厨一厅880起家电齐全", "经度": 120.6468, "纬度": 28.0229, "money": "950元/月", "area": "35㎡", "type": "1室", "desc": "现场实拍，免费看房，家电齐全" },
+{ "标题": "新街公寓 1室1厅1卫 电梯房 配套齐全 精装修", "经度": 120.6682, "纬度": 28.0128, "money": "800元/月", "area": "39㎡", "type": "1室1厅1卫", "desc": "电梯房，配套齐全，精装修" },
+{ "标题": "新县前大楼 1室1厅1卫", "经度": 120.6627, "纬度": 28.0163, "money": "800元/月", "area": "25㎡", "type": "1室1厅1卫", "desc": "" },
+{ "标题": "晏公殿巷47,75弄小区 1室0厅1卫", "经度": 120.6645, "纬度": 28.015, "money": "800元/月", "area": "20㎡", "type": "1室0厅1卫", "desc": "" },
+{ "标题": "扬舲连锁公寓 温州人的浪漫", "经度": 120.6453, "纬度": 28.0251, "money": "1000元/月", "area": "15㎡", "type": "1室", "desc": "" },
+{ "标题": "阳光充足 采光好 独立卫浴 房间宽敞明亮", "经度": 120.6612, "纬度": 28.0145, "money": "998元/月", "area": "30㎡", "type": "1室", "desc": "阳光充足，采光好，独立卫浴，房间宽敞明亮" },
+{ "标题": "一室一厅一卫一厨 户型多样，阳光充足 采光好 独立卫浴", "经度": 120.6612, "纬度": 28.0145, "money": "951元/月", "area": "30㎡", "type": "1室", "desc": "户型多样，阳光充足，采光好，独立卫浴" },
+{ "标题": "一室一厅一卫一厨 户型多样，阳光充足 采光好 独立卫浴", "经度": 120.6612, "纬度": 28.0145, "money": "998元/月", "area": "30㎡", "type": "1室", "desc": "户型多样，阳光充足，采光好，独立卫浴" },
+{ "标题": "医院就医租房临时短租月付从优 学院路眼视光医院 医科大学附近", "经度": 120.6823, "纬度": 27.9974, "money": "1000元/月", "area": "38㎡", "type": "1室", "desc": "医院就医租房，临时短租，月付从优" },
+{ "标题": "银泰百货温州世贸中心 月付可短租家电全拎包入住", "经度": 120.6598, "纬度": 28.0045, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "月付可短租，家电全，拎包入住" },
+{ "标题": "银泰百货温州世贸中心（月付）附近多套房源出租 可短租月付", "经度": 120.6598, "纬度": 28.0045, "money": "800元/月", "area": "39㎡", "type": "1室", "desc": "月付可短租，附近多套房源出租" },
+{ "标题": "月付短租附二医飞霞南路银泰马鞍池人民路带厨房家电齐全拎包入住", "经度": 120.6854, "纬度": 27.9996, "money": "950元/月", "area": "30㎡", "type": "1室", "desc": "月付短租，带厨房，家电齐全，拎包入住" },
+{ "标题": "招贤小区 1室1厅1卫", "经度": 120.6785, "纬度": 28.0072, "money": "980元/月", "area": "25㎡", "type": "1室1厅1卫", "desc": "" },
+{ "标题": "自己房子 水心五马周边 电梯公寓 温馨复式 欢迎入住", "经度": 120.6453, "纬度": 28.0251, "money": "998元/月", "area": "18㎡", "type": "1室", "desc": "电梯公寓，温馨复式，欢迎入住" },
+{ "标题": "自己房子 五马周边 电梯公寓 独门独户 24小时管家服务", "经度": 120.666, "纬度": 28.0095, "money": "999元/月", "area": "19㎡", "type": "1室", "desc": "电梯公寓，独门独户，24小时管家服务" },
+{ "标题": "自己房子，押一付一，电梯房，管家服务，拎包入住。", "经度": 120.6453, "纬度": 28.0251, "money": "950元/月", "area": "18㎡", "type": "1室", "desc": "押一付一，电梯房，管家服务，拎包入住" },
+{ "标题": "自己房子出租 不要中介费 没有隐形消费 绝不坑人", "经度": 120.6453, "纬度": 28.0251, "money": "999元/月", "area": "15㎡", "type": "1室", "desc": "不要中介费，没有隐形消费，绝不坑人" }
+      ];
+
+// 遍历租房数据，添加标记和天气信息
+      rentData.forEach(function(item, index) {
+        getWeatherData(item.经度, item.纬度, function(weather) {
+          item.weather = weather; // 将天气数据添加到租房数据中
+          
+          var marker = new AMap.Marker({
+            position: [item.经度, item.纬度],
+            title: item.标题,
+            icon: new AMap.Icon({
+              size: new AMap.Size(36, 36),
+              image: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png'
+            }),
+            offset: new AMap.Pixel(-18, -36)
+          });
+          marker.setMap(map);
+
+          marker.on('click', function() {
+            // 构建仅包含温度和风速文本的信息窗口内容
+            var weatherContent = `
+              <div class="weather-info">
+                <i class="fa fa-thermometer-half text-red-500 mr-2"></i>
+                <span class="weather-text">温度: ${item.weather.temp}</span>
+              </div>
+              <div class="weather-info">
+                <i class="fa fa-wind text-blue-500 mr-2"></i>
+                <span class="weather-text">风速: ${item.weather.wind}</span>
+              </div>
+            `;
+            
+            var infoWindowContent = `
+              <div class="p-2">
+                <h3 class="font-bold text-gray-800">${item.标题}</h3>
+                <p class="text-gray-600">租金：${item.money}</p>
+                ${weatherContent}
+                <div class="mt-2 flex space-x-2">
+                  <button id="plan-driving-${index}" class="flex-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center justify-center">
+                    <i class="fa fa-car mr-1"></i> 驾车路线
+                  </button>
+                  <button id="plan-walking-${index}" class="flex-1 px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors flex items-center justify-center">
+                    <i class="fa fa-male mr-1"></i> 步行路线
+                  </button>
+                </div>
+              </div>
+            `;
+            
+            var infoWindow = new AMap.InfoWindow({
+              content: infoWindowContent,
+              offset: new AMap.Pixel(0, -30),
+              size: new AMap.Size(260, 180) // 调整高度以适应新按钮
+            });
+            infoWindow.open(map, marker.getPosition());
+
+            // 延迟绑定事件（避免ID冲突）
+            setTimeout(function() {
+              document.getElementById('plan-driving-' + index).addEventListener('click', function() {
+                document.getElementById('route-panel').style.display = 'block';
+                calculateRoute([item.经度, item.纬度], 'driving');
+              });
+              
+              document.getElementById('plan-walking-' + index).addEventListener('click', function() {
+                document.getElementById('route-panel').style.display = 'block';
+                calculateRoute([item.经度, item.纬度], 'walking');
+              });
+            }, 100);
+          });
+        });
+      });
+
+      // 路线规划函数 - 支持驾车和步行
+      function calculateRoute(destination, routeType) {
+        if (!window.AMap.Driving || !window.AMap.Walking) {
+          AMap.plugin(['AMap.Driving', 'AMap.Walking'], function() {
+            doCalculateRoute(destination, routeType);
+          });
+        } else {
+          doCalculateRoute(destination, routeType);
+        }
+      }
+
+      function doCalculateRoute(destination, routeType) {
+        // 清除之前的路线
+        if (window.driving) {
+          driving.clear();
+        }
+        if (window.walking) {
+          walking.clear();
+        }
+        
+        var routeOptions = {
+          map: map,
+          panel: 'route-panel'
+        };
+        
+        // 根据路线类型设置不同的选项
+        if (routeType === 'driving') {
+          routeOptions.policy = AMap.DrivingPolicy.LEAST_TIME;
+          window.driving = new AMap.Driving(routeOptions);
+          var routeService = driving;
+        } else {
+          window.walking = new AMap.Walking(routeOptions);
+          var routeService = walking;
+        }
+        
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(function(position) {
+            var startPoint = [position.coords.longitude, position.coords.latitude];
+            routeService.search(startPoint, destination);
+            
+            // 更新路线类型显示
+            updateRouteTypeDisplay(routeType);
+          }, function() {
+            routeService.search(map.getCenter(), destination);
+            updateRouteTypeDisplay(routeType);
+          });
+        } else {
+          routeService.search(map.getCenter(), destination);
+          updateRouteTypeDisplay(routeType);
+        }
+      }
+
+      // 更新路线类型显示
+      function updateRouteTypeDisplay(routeType) {
+        var routeTypeElement = document.getElementById('route-type');
+        if (routeTypeElement) {
+          if (routeType === 'driving') {
+            routeTypeElement.innerHTML = '<i class="fa fa-car mr-1"></i> 驾车路线';
+            routeTypeElement.className = 'px-3 py-1 bg-blue-500 text-white rounded shadow-md';
+          } else {
+            routeTypeElement.innerHTML = '<i class="fa fa-male mr-1"></i> 步行路线';
+            routeTypeElement.className = 'px-3 py-1 bg-green-500 text-white rounded shadow-md';
+          }
+        }
+      }
+    }
+    
+    // 鹰眼控件初始化函数
+    function initOverviewMap(mainMap) {
+      // 创建鹰眼地图实例
+      var overviewMap = new AMap.Map('鹰眼-map', {
+        zoom: 12, // 鹰眼地图的缩放级别，通常比主地图小
+        center: mainMap.getCenter(),
+        viewMode: '2D',
+        features: ['bg', 'road', 'building'],
+        zooms: [10, 18] // 限制鹰眼地图的缩放范围
+      });
+      
+      // 复制主地图的标记到鹰眼地图
+      mainMap.getAllOverlays('marker').forEach(function(marker) {
+        var position = marker.getPosition();
+        var overviewMarker = new AMap.Marker({
+          position: position,
+          icon: new AMap.Icon({
+            size: new AMap.Size(20, 20),
+            image: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png'
+          }),
+          offset: new AMap.Pixel(-10, -20)
+        });
+        overviewMarker.setMap(overviewMap);
+      });
+      
+      // 获取鹰眼视图元素
+      var view = document.getElementById('鹰眼-view');
+      
+      // 更新鹰眼视图框的位置和大小
+      function updateView() {
+        var bounds = mainMap.getBounds();
+        var sw = bounds.getSouthWest();
+        var ne = bounds.getNorthEast();
+        
+        // 将经纬度转换为鹰眼地图上的像素坐标
+        var swPixel = overviewMap.lngLatToContainer(sw);
+        var nePixel = overviewMap.lngLatToContainer(ne);
+        
+        // 设置视图框的位置和大小
+        view.style.left = swPixel.getX() + 'px';
+        view.style.top = swPixel.getY() + 'px';
+        view.style.width = (nePixel.getX() - swPixel.getX()) + 'px';
+        view.style.height = (nePixel.getY() - swPixel.getY()) + 'px';
+      }
+      
+      // 主地图移动时更新鹰眼视图框
+      mainMap.on('moveend', updateView);
+      mainMap.on('zoomend', updateView);
+      
+      // 初始化视图框
+      updateView();
+      
+      // 实现拖拽鹰眼视图框来移动主地图
+      var isDragging = false;
+      var startX, startY;
+      var startCenter;
+      
+      view.addEventListener('mousedown', function(e) {
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startCenter = mainMap.getCenter();
+        view.style.cursor = 'move';
+        e.preventDefault();
+      });
+      
+      document.addEventListener('mousemove', function(e) {
+        if (!isDragging) return;
+        
+        var deltaX = e.clientX - startX;
+        var deltaY = e.clientY - startY;
+        
+        // 将像素偏移转换为经纬度偏移
+        var container = overviewMap.getContainer();
+        var scaleX = overviewMap.getZoom() / container.offsetWidth;
+        var scaleY = overviewMap.getZoom() / container.offsetHeight;
+        
+        var lngDelta = -deltaX * scaleX;
+        var latDelta = deltaY * scaleY;
+        
+        // 计算新的中心点
+        var newCenter = [
+          startCenter.getLng() + lngDelta,
+          startCenter.getLat() + latDelta
+        ];
+        
+        // 移动主地图
+        mainMap.setCenter(newCenter);
+      });
+      
+      document.addEventListener('mouseup', function() {
+        isDragging = false;
+        view.style.cursor = 'default';
+      });
+      
+      // 点击鹰眼地图时，移动主地图并更新视图框
+      overviewMap.on('click', function(e) {
+        var clickPos = e.lnglat;
+        var mainBounds = mainMap.getBounds();
+        var mainWidth = mainBounds.getNorthEast().getLng() - mainBounds.getSouthWest().getLng();
+        var mainHeight = mainBounds.getNorthEast().getLat() - mainBounds.getSouthWest().getLat();
+        
+        // 计算新的中心点
+        var newCenter = [
+          clickPos.getLng(),
+          clickPos.getLat()
+        ];
+        
+        // 移动主地图
+        mainMap.setCenter(newCenter);
+      });
+    }
+    
+    // 绑定重试按钮事件
+    document.getElementById('retry-load').addEventListener('click', loadMap);
+    
+    // 初始加载地图
+    loadMap();
+  </script>
+</body>
+</html>
